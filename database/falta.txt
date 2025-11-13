@@ -1,0 +1,8 @@
+Falta:
+    -Falta el tema de asignar los camiones determinando el peso del producto
+    -Falta determinar los tiempos de km en segundos asi se termina automatico el tramos
+    -Falta toda el ms de seguimientos
+    -Falta APIGATEWAY
+    -Rutas y tramos, ver como lo vamos a hacer
+    -SWAGGER PARA DOCUMENTAR
+    -Entregarlo

@@ -5,8 +5,8 @@ services:
     image: postgres:15
     container_name: db_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: db_operaciones
     ports:
       - "5432:5432"
@@ -14,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d db_operaciones"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d db_operaciones"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,9 +28,9 @@ services:
     ports:
       - "8082:8082"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=operaciones
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=operaciones
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DB_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,14 +44,14 @@ services:
     ports:
       - "8083:8083"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=transporte
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
-      - SERVER_PORT=8083
-
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=transporte
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DB_PASSWORD}
+      SERVER_PORT: 8083
     depends_on:
       postgres:
         condition: service_healthy
+
   # --- Microservicio de Tarifa ---
   ms-tarifa:
     container_name: ms_tarifa
@@ -61,14 +61,13 @@ services:
     ports:
       - "8084:8084" 
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=tarifa
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
-      - SERVER_PORT=8084 
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=tarifa
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DB_PASSWORD}
+      SERVER_PORT: 8084 
     depends_on:
       postgres:
-        condition: service_healthy 
+        condition: service_healthy
 
-# Volumen de datos de Postgres
 volumes:
   postgres_data:

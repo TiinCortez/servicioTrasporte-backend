@@ -4,12 +4,12 @@ package com.transportes.transporte.service;
 import com.transportes.transporte.dto.*;
 import com.transportes.transporte.entities.Solicitud;
 import com.transportes.transporte.entities.Tramo;
-import com.transportes.transporte.mappers.SolicitudMapper; // <-- ¡PERFECTO!
+import com.transportes.transporte.mappers.SolicitudMapper; 
 import com.transportes.transporte.repository.SolicitudRepository;
 import com.transportes.transporte.repository.TramoRepository;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.AllArgsConstructor; // <-- ¡IMPORT NECESARIO!
-import lombok.Data; // <-- ¡IMPORT NECESARIO!
+import lombok.AllArgsConstructor; 
+import lombok.Data; 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -24,7 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
 import java.time.Year;
-import java.util.ArrayList; // <-- ¡IMPORT NECESARIO!
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +43,7 @@ public class SolicitudService {
     private RestTemplate restTemplate;
 
     @Autowired
-    private SolicitudMapper mapper; // <-- ¡PERFECTO!
+    private SolicitudMapper mapper; 
 
     @Value("${OPENCAGE_API_KEY:}")
     private String OPENCAGE_API_KEY;

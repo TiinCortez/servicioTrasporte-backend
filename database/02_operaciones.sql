@@ -62,33 +62,32 @@ INSERT INTO camion (id, dominio, nombre_transportista, cap_peso_kg, cap_vol_m3, 
 SELECT setval('camion_id_seq', (SELECT MAX(id) FROM camion));
 
 -- CREACION DE DATOS DE DEPOSITOS [UNO POR PROVINCIA] --
-INSERT INTO deposito (id, nombre, direccion, lat, lng, creado_en) VALUES
-(1,  'DEP-001', 'Plaza de Mayo, Ciudad Autónoma de Buenos Aires, CABA', -34.6083, -58.3722, now()),
-(2,  'DEP-002', 'Plaza Moreno, La Plata, Buenos Aires', -34.9213, -57.9545, now()),
-(3,  'DEP-003', 'Plaza 25 de Mayo, San Fernando del Valle de Catamarca, Catamarca', -28.4686, -65.7795, now()),
-(4,  'DEP-004', 'Plaza 25 de Mayo, Resistencia, Chaco', -27.4516, -58.9862, now()),
-(5,  'DEP-005', 'Plaza 25 de Mayo, Rawson, Chubut', -43.3004, -65.1022, now()),
-(6,  'DEP-006', 'Plaza 25 de Mayo, Córdoba, Córdoba', -31.4167, -64.1833, now()),
-(7,  'DEP-007', 'Plaza 25 de Mayo, Corrientes, Corrientes', -27.4806, -58.8345, now()),
-(8,  'DEP-008', 'Plaza 9 de Julio, Paraná, Entre Ríos', -31.7310, -60.5238, now()),
-(9,  'DEP-009', 'Plaza San Martín, Formosa, Formosa', -26.1842, -58.1789, now()),
-(10, 'DEP-010', 'Plaza 9 de Julio, San Salvador de Jujuy, Jujuy', -24.1858, -65.2995, now()),
-(11, 'DEP-011', 'Plaza San Martín, Santa Rosa, La Pampa', -36.6163, -64.2858, now()),
-(12, 'DEP-012', 'Plaza 25 de Mayo, La Rioja, La Rioja', -29.4133, -66.8550, now()),
-(13, 'DEP-013', 'Plaza 9 de Julio, Mendoza, Mendoza', -32.8908, -68.8272, now()),
-(14, 'DEP-014', 'Plaza 9 de Julio, Posadas, Misiones', -27.3630, -55.8963, now()),
-(15, 'DEP-015', 'Plaza San Martín, Neuquén, Neuquén', -38.9516, -68.0590, now()),
-(16, 'DEP-016', 'Plaza 25 de Mayo, Viedma, Río Negro', -40.8134, -62.9969, now()),
-(17, 'DEP-017', 'Plaza 25 de Mayo, Salta, Salta', -24.7889, -65.4100, now()),
-(18, 'DEP-018', 'Plaza 9 de Julio, San Juan, San Juan', -31.5375, -68.5364, now()),
-(19, 'DEP-019', 'Plaza Pringles, San Luis, San Luis', -33.3006, -66.3378, now()),
-(20, 'DEP-020', 'Plaza 25 de Mayo, Santa Fe, Santa Fe', -31.6327, -60.7007, now()),
-(21, 'DEP-021', 'Plaza San Martín, Santiago del Estero, Santiago del Estero', -27.7956, -64.2611, now()),
-(22, 'DEP-022', 'Plaza Independencia, San Miguel de Tucumán, Tucumán', -26.8322, -65.2038, now()),
-(23, 'DEP-023', 'Plaza San Martín, Río Gallegos, Santa Cruz', -51.6236, -69.2168, now()),
-(24, 'DEP-024', 'Plaza San Martín, Ushuaia, Tierra del Fuego', -54.8019, -68.3029, now());
+INSERT INTO deposito (id, nombre, direccion, lat, lng, creado_en, costo_estadia_diario) VALUES
+(1,  'DEP-001', 'Plaza de Mayo, Ciudad Autónoma de Buenos Aires, CABA', -34.6083, -58.3722, now(), 2500.00),
+(2,  'DEP-002', 'Plaza Moreno, La Plata, Buenos Aires', -34.9213, -57.9545, now(), 2500.00),
+(3,  'DEP-003', 'Plaza 25 de Mayo, San Fernando del Valle de Catamarca, Catamarca', -28.4686, -65.7795, now(), 2500.00),
+(4,  'DEP-004', 'Plaza 25 de Mayo, Resistencia, Chaco', -27.4516, -58.9862, now(), 2500.00),
+(5,  'DEP-005', 'Plaza 25 de Mayo, Rawson, Chubut', -43.3004, -65.1022, now(), 2500.00),
+(6,  'DEP-006', 'Plaza 25 de Mayo, Córdoba, Córdoba', -31.4167, -64.1833, now(), 2500.00),
+(7,  'DEP-007', 'Plaza 25 de Mayo, Corrientes, Corrientes', -27.4806, -58.8345, now(), 2500.00),
+(8,  'DEP-008', 'Plaza 9 de Julio, Paraná, Entre Ríos', -31.7310, -60.5238, now(), 2500.00),
+(9,  'DEP-009', 'Plaza San Martín, Formosa, Formosa', -26.1842, -58.1789, now(), 2500.00),
+(10, 'DEP-010', 'Plaza 9 de Julio, San Salvador de Jujuy, Jujuy', -24.1858, -65.2995, now(), 2500.00),
+(11, 'DEP-011', 'Plaza San Martín, Santa Rosa, La Pampa', -36.6163, -64.2858, now(), 2500.00),
+(12, 'DEP-012', 'Plaza 25 de Mayo, La Rioja, La Rioja', -29.4133, -66.8550, now(), 2500.00),
+(13, 'DEP-013', 'Plaza 9 de Julio, Mendoza, Mendoza', -32.8908, -68.8272, now(), 2500.00),
+(14, 'DEP-014', 'Plaza 9 de Julio, Posadas, Misiones', -27.3630, -55.8963, now(), 2500.00),
+(15, 'DEP-015', 'Plaza San Martín, Neuquén, Neuquén', -38.9516, -68.0590, now(), 2500.00),
+(16, 'DEP-016', 'Plaza 25 de Mayo, Viedma, Río Negro', -40.8134, -62.9969, now(), 2500.00),
+(17, 'DEP-017', 'Plaza 25 de Mayo, Salta, Salta', -24.7889, -65.4100, now(), 2500.00),
+(18, 'DEP-018', 'Plaza 9 de Julio, San Juan, San Juan', -31.5375, -68.5364, now(), 2500.00),
+(19, 'DEP-019', 'Plaza Pringles, San Luis, San Luis', -33.3006, -66.3378, now(), 2500.00),
+(20, 'DEP-020', 'Plaza 25 de Mayo, Santa Fe, Santa Fe', -31.6327, -60.7007, now(), 2500.00),
+(21, 'DEP-021', 'Plaza San Martín, Santiago del Estero, Santiago del Estero', -27.7956, -64.2611, now(), 2500.00),
+(22, 'DEP-022', 'Plaza Independencia, San Miguel de Tucumán, Tucumán', -26.8322, -65.2038, now(), 2500.00),
+(23, 'DEP-023', 'Plaza San Martín, Río Gallegos, Santa Cruz', -51.6236, -69.2168, now(), 2500.00),
+(24, 'DEP-024', 'Plaza San Martín, Ushuaia, Tierra del Fuego', -54.8019, -68.3029, now(), 2500.00);
 SELECT setval('deposito_id_seq', (SELECT MAX(id) FROM deposito));
-
 
 INSERT INTO contenedor (id, codigo, capacidad_kg, estado, creado_en, cliente_id) VALUES
 (1, 'AAA-001', 10000, 'PENDIENTE', now(), 1),

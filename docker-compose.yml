@@ -43,6 +43,8 @@ services:
       dockerfile: ./transporte.dockerfile
     ports:
       - "8083:8083"
+    env_file:
+      - .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=transporte
       SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}

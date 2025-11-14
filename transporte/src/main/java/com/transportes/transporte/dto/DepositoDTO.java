@@ -1,5 +1,7 @@
 package com.transportes.transporte.dto;
 
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
@@ -12,4 +14,5 @@ public class DepositoDTO {
     private String nombre;
     private Double lat;
     private Double lng;
+    private BigDecimal costoEstadiaDiario;
 }

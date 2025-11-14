@@ -1,11 +1,15 @@
+// Ubicación: transporte/src/main/java/com/transportes/transporte/service/SolicitudService.java
 package com.transportes.transporte.service;
 
 import com.transportes.transporte.dto.*;
 import com.transportes.transporte.entities.Solicitud;
 import com.transportes.transporte.entities.Tramo;
+import com.transportes.transporte.mappers.SolicitudMapper; // <-- ¡PERFECTO!
 import com.transportes.transporte.repository.SolicitudRepository;
 import com.transportes.transporte.repository.TramoRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor; // <-- ¡IMPORT NECESARIO!
+import lombok.Data; // <-- ¡IMPORT NECESARIO!
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -16,12 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
+import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
 import java.time.Year;
-import java.util.List;
+import java.util.ArrayList; // <-- ¡IMPORT NECESARIO!
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,14 +42,20 @@ public class SolicitudService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private SolicitudMapper mapper; // <-- ¡PERFECTO!
 
-    //ACA VA LA API KEY DE OPENCAGE
-    private String OPENCAGE_API_KEY = "" ;
+    @Value("${OPENCAGE_API_KEY:}")
+    private String OPENCAGE_API_KEY;
 
     private List<DepositoDTO> depositCache = null;
-
     private final Map<String, OpenCageGeometry> geocodingCache = new ConcurrentHashMap<>();
-    // Utilizamos OpenCage en lugar de Nominatim para geocodificación ya que nos traia problemas de logs vacios.
+    private long lastNominatimCall = 0; // (Lo mantenemos por si OpenCage también tiene límites)
+    private static final long MIN_DELAY_MS = 1100;
+
+    /**
+     * Llama a OpenCage para geocodificar.
+     */
     private synchronized OpenCageGeometry getCoordinates(String address) {
         String cacheKey = address.toLowerCase().trim();
         if (geocodingCache.containsKey(cacheKey)) {
@@ -52,31 +63,38 @@ public class SolicitudService {
             return geocodingCache.get(cacheKey);
         }
 
-        // Construir URL de OpenCage
+        // ... (Tu lógica de rate limit está perfecta) ...
+        long elapsed = System.currentTimeMillis() - lastNominatimCall;
+        if (elapsed < MIN_DELAY_MS) {
+            try {
+                long waitTime = MIN_DELAY_MS - elapsed;
+                System.out.println("Esperando " + waitTime + "ms para respetar rate limit de Nominatim...");
+                Thread.sleep(waitTime);
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+
         String opencageUrl = UriComponentsBuilder
                 .fromUriString("https://api.opencagedata.com/geocode/v1/json")
                 .queryParam("q", address)
                 .queryParam("key", OPENCAGE_API_KEY)
-                .queryParam("countrycode", "ar") // Se filtra por direcciones de Argentina 
+                .queryParam("countrycode", "ar")
                 .queryParam("limit", 1)
                 .toUriString();
-
         System.out.println("URL OpenCage: " + opencageUrl);
 
         try {
             OpenCageResponse response = restTemplate.getForObject(opencageUrl, OpenCageResponse.class);
 
-            if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
+            // --- ¡¡ARREGLO #3: CHEQUEO DE NULL MÁS SEGURO!! ---
+            if (response == null || response.getResults() == null || response.getResults().isEmpty() || response.getResults().get(0).getGeometry() == null) {
                 throw new RuntimeException(
-                        "No se encontraron coordenadas para la direccion: '" + address + "'. " +
-                        "Intenta ser mas especifico (ej: 'Poeta Lugones, Cordoba, Argentina')"
+                        "No se encontraron coordenadas para la direccion: '" + address + "'. "
                 );
             }
 
             OpenCageGeometry result = response.getResults().get(0).getGeometry();
             geocodingCache.put(cacheKey, result);
-            System.out.println("Coordenadas encontradas y guardadas en cache: " + 
-                               result.getLat() + ", " + result.getLng());
+            System.out.println("Coordenadas encontradas y guardadas en cache: " + result.getLat() + ", " + result.getLng());
             return result;
             
         } catch (Exception e) {
@@ -130,7 +148,47 @@ public class SolicitudService {
         return closest;
     }
     
-// --- ¡¡MÉTODO PRINCIPAL ACTUALIZADO!! ---
+    /**
+     * Llama a OSRM y ms-tarifa para calcular los datos de UN solo tramo (una ruta).
+     */
+    private RutaCalculada calcularRutaYCostos(double lonOrigen, double latOrigen, double lonDestino, double latDestino) {
+        System.out.println(String.format("Calculando ruta para: %f,%f -> %f,%f", lonOrigen, latOrigen, lonDestino, latDestino));
+        
+        // Paso 1: Llamar a OSRM (público)
+        String osrmCoordinates = String.format("%f,%f;%f,%f", lonOrigen, latOrigen, lonDestino, latDestino);
+        String osrmUrl = "http://routing.openstreetmap.de/routed-car/route/v1/driving/" + osrmCoordinates + "?overview=false";
+        
+        Integer tiempoEstimado;
+        BigDecimal distanciaKm;
+        
+        try {
+            OsrmResponse osrmResponse = restTemplate.getForObject(osrmUrl, OsrmResponse.class);
+            OsrmRoute route = osrmResponse.getRoutes().get(0);
+            distanciaKm = BigDecimal.valueOf(route.getDistance() / 1000.0);
+            tiempoEstimado = (int) (route.getDuration() / 60.0);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al llamar a OSRM: " + e.getMessage(), e);
+        }
+        
+        // Paso 2: Llamar a ms-tarifa
+        String tarifaUrl = "http://ms-tarifa:8084/api/tarifas/calcular";
+        CalculoRequestDTO tarifaRequest = new CalculoRequestDTO();
+        tarifaRequest.setDistanciaKm(distanciaKm);
+        BigDecimal costoEstimado;
+        
+        try {
+            CalculoResponseDTO tarifaResponse = restTemplate.postForObject(tarifaUrl, tarifaRequest, CalculoResponseDTO.class);
+            costoEstimado = tarifaResponse.getCostoEstimado();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al llamar a ms-tarifa: " + e.getMessage(), e);
+        }
+        
+        System.out.println(String.format("Tramo calculado: %.2f km, %d min, $%.2f", distanciaKm, tiempoEstimado, costoEstimado));
+        return new RutaCalculada(distanciaKm, tiempoEstimado, costoEstimado);
+    }
+
+
+    // --- ¡MÉTODO PRINCIPAL CON 3 TRAMOS! ---
     @Transactional
     public SolicitudResponseDTO createSolicitud(SolicitudRequestDTO requestDTO) {
 
@@ -138,60 +196,45 @@ public class SolicitudService {
         System.out.println("Origen: " + requestDTO.getOrigenDir());
         System.out.println("Destino: " + requestDTO.getDestinoDir());
 
-        // Paso 1: Geocodificacion (OpenCage)
+        // Paso 1: Geocodificacion y Depósitos
         OpenCageGeometry coordsOrigen = getCoordinates(requestDTO.getOrigenDir());
         OpenCageGeometry coordsDestino = getCoordinates(requestDTO.getDestinoDir());
+        List<DepositoDTO> allDeposits = getDepositos();
+        DepositoDTO depOrigen = findClosestDeposit(allDeposits, coordsOrigen.getLat(), coordsOrigen.getLng());
+        DepositoDTO depDestino = findClosestDeposit(allDeposits, coordsDestino.getLat(), coordsDestino.getLng());
 
-        // --- ¡¡NUEVO!! Paso 1.5: Encontrar depósitos más cercanos ---
-        System.out.println("Buscando depósitos más cercanos...");
-        List<DepositoDTO> allDeposits = getDepositos(); // Llama a 'operaciones' (o usa caché)
+        System.out.println("Depósito Origen más cercano: " + depOrigen.getNombre());
+        System.out.println("Depósito Destino más cercano: " + depDestino.getNombre());
         
-        DepositoDTO closestToOrigin = findClosestDeposit(allDeposits, coordsOrigen.getLat(), coordsOrigen.getLng());
-        DepositoDTO closestToDestination = findClosestDeposit(allDeposits, coordsDestino.getLat(), coordsDestino.getLng());
-        
-        if (closestToOrigin == null || closestToDestination == null) {
-            throw new RuntimeException("No se pudieron encontrar depósitos con coordenadas válidas.");
-        }
-        
-        System.out.println("Depósito Origen más cercano: " + closestToOrigin.getNombre() + " (ID: " + closestToOrigin.getId() + ")");
-        System.out.println("Depósito Destino más cercano: " + closestToDestination.getNombre() + " (ID: " + closestToDestination.getId() + ")");
-        // --- FIN DEL NUEVO PASO ---
-
-        // Paso 2: Ruteo (OSRM)
-        String osrmCoordinates = String.format("%f,%f;%f,%f",
-                coordsOrigen.getLng(), coordsOrigen.getLat(),
-                coordsDestino.getLng(), coordsDestino.getLat()
+        // Paso 2: Cálculo de los 3 Tramos (Viajes)
+        RutaCalculada tramo1 = calcularRutaYCostos(
+            coordsOrigen.getLng(), coordsOrigen.getLat(), 
+            depOrigen.getLng(), depOrigen.getLat()
         );
-        String osrmUrl = "http://routing.openstreetmap.de/routed-car/route/v1/driving/" + osrmCoordinates + "?overview=false";
-        
-        // ... (Tu código de OSRM y cálculo de costo sigue igual)
-        Integer tiempoEstimado;
-        BigDecimal distanciaKm;
-        try {
-            OsrmResponse osrmResponse = restTemplate.getForObject(osrmUrl, OsrmResponse.class);
-            OsrmRoute route = osrmResponse.getRoutes().get(0);
-            distanciaKm = BigDecimal.valueOf(route.getDistance() / 1000.0);
-            tiempoEstimado = (int) (route.getDuration() / 60.0);
-            System.out.println("Ruta calculada: " + distanciaKm + " km, " + tiempoEstimado + " min");
-        } catch (Exception e) {
-            throw new RuntimeException("Error al llamar a OSRM: " + e.getMessage(), e);
-        }
-        
-        // Paso 3: Calculo de costo (Llamada a ms-tarifa)
-        String tarifaUrl = "http://ms-tarifa:8084/api/tarifas/calcular";
-        CalculoRequestDTO tarifaRequest = new CalculoRequestDTO();
-        tarifaRequest.setDistanciaKm(distanciaKm);
-        BigDecimal costoEstimado;
-        try {
-            CalculoResponseDTO tarifaResponse = restTemplate.postForObject(tarifaUrl, tarifaRequest, CalculoResponseDTO.class);
-            costoEstimado = tarifaResponse.getCostoEstimado();
-            System.out.println("Costo estimado (real) recibido de ms-tarifa: $" + costoEstimado);
-        } catch (Exception e) {
-            throw new RuntimeException("Error al llamar a ms-tarifa: " + e.getMessage(), e);
-        }
+        RutaCalculada tramo2 = calcularRutaYCostos(
+            depOrigen.getLng(), depOrigen.getLat(), 
+            depDestino.getLng(), depDestino.getLat()
+        );
+        RutaCalculada tramo3 = calcularRutaYCostos(
+            depDestino.getLng(), depDestino.getLat(), 
+            coordsDestino.getLng(), coordsDestino.getLat()
+        );
 
-        // Paso 4: Llamada a ms-operaciones (Reserva de Contenedor)
-        // ... (Tu código de reserva de contenedor sigue igual)
+        // Paso 3: Cálculo de Totales (Viajes + Estadía)
+        BigDecimal costoTotalViajes = tramo1.getCostoEstimado()
+                                      .add(tramo2.getCostoEstimado())
+                                      .add(tramo3.getCostoEstimado());
+        BigDecimal costoEstadiaOrigen = (depOrigen.getCostoEstadiaDiario() != null) ? depOrigen.getCostoEstadiaDiario() : BigDecimal.ZERO;
+        BigDecimal costoEstadiaDestino = (depDestino.getCostoEstadiaDiario() != null) ? depDestino.getCostoEstadiaDiario() : BigDecimal.ZERO;
+        BigDecimal costoTotalEstadia = costoEstadiaOrigen.add(costoEstadiaDestino);
+        BigDecimal costoTotal = costoTotalViajes.add(costoTotalEstadia);
+        Integer tiempoTotal = tramo1.getTiempoEstimadoMin() + tramo2.getTiempoEstimadoMin() + tramo3.getTiempoEstimadoMin();
+
+        System.out.println("Costos de Viaje: $" + costoTotalViajes);
+        System.out.println("Costos de Estadía (Depósitos): $" + costoTotalEstadia);
+        System.out.println("COSTO TOTAL ESTIMADO: $" + costoTotal);
+
+        // Paso 4: Reserva de Contenedor (Llamada a ms-operaciones)
         String url = "http://ms-operaciones:8082/api/operaciones/contenedores/" 
                        + requestDTO.getContenedorId() 
                        + "/estado";
@@ -200,7 +243,9 @@ public class SolicitudService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<ActualizacionEstadoRequestDTO> entity = new HttpEntity<>(estadoRequest, headers);
         try {
+            System.out.println("Actualizando estado del contenedor " + requestDTO.getContenedorId());
             restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
+            System.out.println("Contenedor actualizado a EN PREPARACION");
         } catch (HttpClientErrorException ex) {
             throw new RuntimeException("Error al reservar el contenedor: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString(), ex);
         } catch (Exception e) {
@@ -211,7 +256,7 @@ public class SolicitudService {
         String numeroSolicitudGenerado = Year.now().getValue() + "-" + 
                                          UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // Paso 6: Crear y Guardar la 'Solicitud'
+        // Paso 6: Guardar la Solicitud (Padre)
         Solicitud nuevaSolicitud = Solicitud.builder()
                 .numeroSolicitud(numeroSolicitudGenerado)
                 .clienteId(requestDTO.getClienteId())
@@ -223,94 +268,66 @@ public class SolicitudService {
                 .destinoLat(coordsDestino.getLat())
                 .destinoLng(coordsDestino.getLng())
                 .estado("PENDIENTE")
-                .tiempoEstimadoMin(tiempoEstimado)
-                .costoEstimado(costoEstimado)
+                .tiempoEstimadoMin(tiempoTotal)
+                .costoEstimado(costoTotal)
                 .build();
         Solicitud solicitudGuardada = solicitudRepository.save(nuevaSolicitud);
 
-        // Paso 7: Crear y Guardar el Tramo 
-        Tramo tramoInicial = Tramo.builder()
-                .solicitud(solicitudGuardada)
-                .estado("PENDIENTE")
-                .origenDir(solicitudGuardada.getOrigenDir()) 
-                .destinoDir(solicitudGuardada.getDestinoDir()) 
-                .depositoOrigenId(closestToOrigin.getId())
-                .depositoDestinoId(closestToDestination.getId()) 
-                .nombreDepositoOrigen(closestToOrigin.getNombre()) 
-                .nombreDepositoDestino(closestToDestination.getNombre())
-                .distanciaKm(distanciaKm)
-                .duracionMin(tiempoEstimado)
-                .build();
-        
-        tramoRepository.save(tramoInicial);
+        // Paso 7: Guardar los Tramos (Hijos)
+        List<Tramo> tramosAGuardar = new ArrayList<>();
+        tramosAGuardar.add(Tramo.builder()
+            .solicitud(solicitudGuardada).estado("PENDIENTE")
+            .origenDir(requestDTO.getOrigenDir()).destinoDir(depOrigen.getNombre())
+            .depositoOrigenId(null).depositoDestinoId(depOrigen.getId())
+            .nombreDepositoOrigen(null).nombreDepositoDestino(depOrigen.getNombre())
+            .distanciaKm(tramo1.getDistanciaKm()).duracionMin(tramo1.getTiempoEstimadoMin())
+            .costoRealTramo(tramo1.getCostoEstimado())
+            .build());
+        tramosAGuardar.add(Tramo.builder()
+            .solicitud(solicitudGuardada).estado("PENDIENTE")
+            .origenDir(depOrigen.getNombre()).destinoDir(depDestino.getNombre())
+            .depositoOrigenId(depOrigen.getId()).depositoDestinoId(depDestino.getId())
+            .nombreDepositoOrigen(depOrigen.getNombre()).nombreDepositoDestino(depDestino.getNombre())
+            .distanciaKm(tramo2.getDistanciaKm()).duracionMin(tramo2.getTiempoEstimadoMin())
+            .costoRealTramo(tramo2.getCostoEstimado())
+            .build());
+        tramosAGuardar.add(Tramo.builder()
+            .solicitud(solicitudGuardada).estado("PENDIENTE")
+            .origenDir(depDestino.getNombre()).destinoDir(requestDTO.getDestinoDir())
+            .depositoOrigenId(depDestino.getId()).depositoDestinoId(null)
+            .nombreDepositoOrigen(depDestino.getNombre()).nombreDepositoDestino(null)
+            .distanciaKm(tramo3.getDistanciaKm()).duracionMin(tramo3.getTiempoEstimadoMin())
+            .costoRealTramo(tramo3.getCostoEstimado())
+            .build());
+        tramoRepository.saveAll(tramosAGuardar);
 
         System.out.println("Solicitud creada exitosamente: " + numeroSolicitudGenerado);
 
-        // Paso 8: Devolver respuesta
-        return mapEntidadToDto(solicitudGuardada);
+        // Paso 8: Devolver respuesta (¡USANDO EL MAPPER!)
+        return mapper.mapEntidadToDto(solicitudGuardada);
     }
     
     @Transactional(readOnly = true)
     public SolicitudResponseDTO getSolicitudById(Long id) {
         Solicitud solicitud = solicitudRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Solicitud no encontrada"));
-        return mapEntidadToDto(solicitud);
+        return mapper.mapEntidadToDto(solicitud);
     }
     
     @Transactional(readOnly = true)
     public List<SolicitudResponseDTO> getAllSolicitudes() {
         return solicitudRepository.findAll().stream()
-                .map(this::mapEntidadToDto)
+                .map(mapper::mapEntidadToDto)
                 .collect(Collectors.toList());
     }
-
-    // Metodos de mapeo
-    
-    private SolicitudResponseDTO mapEntidadToDto(Solicitud entidad) {
-        SolicitudResponseDTO dto = new SolicitudResponseDTO();
-        dto.setId(entidad.getId());
-        dto.setNumeroSolicitud(entidad.getNumeroSolicitud());
-        dto.setClienteId(entidad.getClienteId());
-        dto.setContenedorId(entidad.getContenedorId());
-        dto.setOrigenLat(entidad.getOrigenLat());
-        dto.setOrigenLng(entidad.getOrigenLng());
-        dto.setOrigenDir(entidad.getOrigenDir());
-        dto.setDestinoLat(entidad.getDestinoLat());
-        dto.setDestinoLng(entidad.getDestinoLng());
-        dto.setDestinoDir(entidad.getDestinoDir());
-        dto.setEstado(entidad.getEstado());
-        dto.setCostoEstimado(entidad.getCostoEstimado());
-        dto.setTiempoEstimadoMin(entidad.getTiempoEstimadoMin());
-        dto.setCostoFinal(entidad.getCostoFinal());
-        dto.setTiempoRealMin(entidad.getTiempoRealMin());
-        dto.setCreadoEn(entidad.getCreadoEn());
-        if (entidad.getTramos() != null) {
-            dto.setTramos(entidad.getTramos().stream()
-                    .map(this::mapTramoToDto)
-                    .collect(Collectors.toList()));
-        }
-        return dto;
-    }
-
-    private TramoResponseDTO mapTramoToDto(Tramo tramo) {
-        TramoResponseDTO dto = new TramoResponseDTO();
-        dto.setId(tramo.getId());
-        if (tramo.getSolicitud() != null) {
-            dto.setSolicitudId(tramo.getSolicitud().getId());
-        }
-        dto.setEstado(tramo.getEstado());
-        dto.setCamionId(tramo.getCamionId());
-        dto.setDepositoOrigenId(tramo.getDepositoOrigenId());
-        dto.setNombreDepositoOrigen(tramo.getNombreDepositoOrigen());
-        dto.setDepositoDestinoId(tramo.getDepositoDestinoId());
-        dto.setNombreDepositoDestino(tramo.getNombreDepositoDestino());
-        dto.setOrigenDir(tramo.getOrigenDir());
-        dto.setDestinoDir(tramo.getDestinoDir());
-        dto.setDistanciaKm(tramo.getDistanciaKm());
-        dto.setDuracionMin(tramo.getDuracionMin());
-        dto.setCostoRealTramo(tramo.getCostoRealTramo());
-        dto.setFechaHoraInicio(tramo.getFechaHoraInicio());
-        dto.setFechaHoraFin(tramo.getFechaHoraFin());
-        return dto;
+    // --- ¡¡ARREGLO #2: CLASE AUXILIAR INTERNA!! ---
+    // (Pon esta clase pequeña al final de tu archivo SolicitudService.java)
+    @Data
+    @AllArgsConstructor
+    private static class RutaCalculada {
+        private BigDecimal distanciaKm;
+        private Integer tiempoEstimadoMin;
+        private BigDecimal costoEstimado;
     }
 }
+

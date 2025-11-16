@@ -32,8 +32,11 @@ services:
       - start-dev
       - --http-port=8080
       - --hostname-strict=false
+      - --import-realm          # 👈 acá le decimos que importe los realms del directorio /opt/keycloak/data/import
     ports:
       - "8080:8080"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import   # 👈 montamos tu JSON dentro del contenedor
     depends_on:
       postgres:
         condition: service_healthy

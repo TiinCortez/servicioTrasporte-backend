@@ -11,24 +11,23 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor; 
 import lombok.Data; 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import java.math.BigDecimal;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.time.Year;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors; 
 
@@ -45,8 +44,8 @@ public class SolicitudService {
     @Autowired
     private SolicitudMapper mapper; 
 
-    @Value("${OPENCAGE_API_KEY:}")
-    private String OPENCAGE_API_KEY;
+
+    private String OPENCAGE_API_KEY ="d87d4d3b0db84826a9ffcee7f1e2d00a";
 
     private List<DepositoDTO> depositCache = null;
     private final Map<String, OpenCageGeometry> geocodingCache = new ConcurrentHashMap<>();
@@ -329,5 +328,261 @@ public class SolicitudService {
         private Integer tiempoEstimadoMin;
         private BigDecimal costoEstimado;
     }
+
+
+    @Transactional
+    public Tramo asignarCamionATramo(Long tramoId, Long camionId) {
+
+        Tramo tramo = tramoRepository.findById(tramoId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "No existe tramo con id " + tramoId));
+
+        tramo.setCamionId(camionId);
+        tramo.setEstado("ASIGNADO");
+
+        return tramoRepository.save(tramo);
+    }
+
+    @Transactional
+    public List<Tramo> asignarCamionASolicitud(Long solicitudId, Long camionId) {
+
+        // 1) Validar que exista la solicitud
+        Solicitud solicitud = solicitudRepository.findById(solicitudId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "No existe solicitud con id " + solicitudId
+                ));
+
+        // 2) Obtener los tramos de esa solicitud
+        List<Tramo> tramos = tramoRepository.findBySolicitudId(solicitud.getId());
+
+        if (tramos.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La solicitud " + solicitudId + " no tiene tramos para asignar"
+            );
+        }
+
+        // 3) Obtener datos del camión y del contenedor desde ms-operaciones
+        CamionDTO camion = obtenerCamion(camionId);
+        ContenedorDTO contenedor = obtenerContenedor(solicitud.getContenedorId());
+
+        // 4) Validar capacidad (peso + volumen simbólico) + disponibilidad
+        validarCapacidad(camion, contenedor);
+
+        // 5) Asignar el camión a TODOS los tramos
+        for (Tramo tramo : tramos) {
+            tramo.setCamionId(camionId);
+            tramo.setEstado("ASIGNADO");
+        }
+
+        // 6) Guardar cambios y devolverlos
+        return tramoRepository.saveAll(tramos);
+    }
+
+    // ----------------- HELPERS EXTERNOS A MS-OPERACIONES -----------------
+
+    private CamionDTO obtenerCamion(Long camionId) {
+        String url = "http://ms-operaciones:8082/api/operaciones/camiones/" + camionId;
+        CamionDTO camion = restTemplate.getForObject(url, CamionDTO.class);
+
+        if (camion == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No se encontró el camión con id " + camionId + " en ms-operaciones"
+            );
+        }
+        return camion;
+    }
+
+    private ContenedorDTO obtenerContenedor(Long contenedorId) {
+        String url = "http://ms-operaciones:8082/api/operaciones/contenedores/" + contenedorId;
+        ContenedorDTO contenedor = restTemplate.getForObject(url, ContenedorDTO.class);
+
+        if (contenedor == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No se encontró el contenedor con id " + contenedorId + " en ms-operaciones"
+            );
+        }
+        return contenedor;
+    }
+
+    private void validarCapacidad(CamionDTO camion, ContenedorDTO contenedor) {
+
+        // 1) Disponibilidad del camión
+        if (!Boolean.TRUE.equals(camion.getDisponible())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "El camión no está disponible"
+            );
+        }
+
+        // 2) Validación REAL de peso
+        if (camion.getCapPesoKg() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "El camión no tiene configurada la capacidad de peso"
+            );
+        }
+
+        if (contenedor.getCapacidadKg() != null &&
+                BigDecimal.valueOf(contenedor.getCapacidadKg())
+                        .compareTo(camion.getCapPesoKg()) > 0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "El contenedor excede la capacidad de peso del camión ("
+                            + camion.getCapPesoKg() + " kg)"
+            );
+        }
+
+        // 3) Validación simple de volumen (asumimos 10 m3 para el contenedor)
+        if (camion.getCapVolM3() != null) {
+            BigDecimal volumenContenedor = new BigDecimal("10"); // valor fijo para el TP
+
+            if (camion.getCapVolM3().compareTo(volumenContenedor) < 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "El contenedor no entra en el camión por volumen (se asume 10 m3)"
+                );
+            }
+        }
+    }
+
+    @Transactional
+    public Tramo iniciarTramo(Long tramoId) {
+
+        Tramo tramo = tramoRepository.findById(tramoId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No existe tramo " + tramoId));
+
+        if (!"ASIGNADO".equals(tramo.getEstado())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "El tramo debe estar ASIGNADO para poder iniciarse");
+        }
+
+        tramo.setEstado("EN_CURSO");
+        tramo.setFechaHoraInicio(OffsetDateTime.now());
+
+        tramoRepository.save(tramo);
+
+        enviarEventoSeguimiento("INICIO_TRAMO", tramo);
+
+        return tramo;
+    }
+
+    @Transactional
+    public Tramo finalizarTramo(Long tramoId) {
+
+        Tramo tramo = tramoRepository.findById(tramoId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No existe tramo " + tramoId));
+
+        if (!"EN_CURSO".equals(tramo.getEstado())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "El tramo debe estar EN_CURSO para finalizarse");
+        }
+
+        tramo.setEstado("FINALIZADO");
+        tramo.setFechaHoraFin(OffsetDateTime.now());
+
+        tramoRepository.save(tramo);
+
+        enviarEventoSeguimiento("FIN_TRAMO", tramo);
+
+        return tramo;
+    }
+
+
+    @Transactional
+    public SolicitudResponseDTO finalizarSolicitud(Long solicitudId) {
+
+        Solicitud solicitud = solicitudRepository.findById(solicitudId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "La solicitud no existe"));
+
+        // Obtener tramos desde BD
+        List<Tramo> tramos = tramoRepository.findBySolicitudId(solicitudId);
+
+        // Validar estado
+        boolean todosFinalizados = tramos.stream()
+                .allMatch(t -> "FINALIZADO".equals(t.getEstado()));
+
+        if (!todosFinalizados) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La solicitud aún tiene tramos sin finalizar");
+        }
+
+        // ---------- CALCULAR COSTO TOTAL ----------
+        BigDecimal costoTotal = tramos.stream()
+                .map(Tramo::getCostoRealTramo)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        solicitud.setCostoFinal(costoTotal);
+
+        // ---------- CALCULAR TIEMPO REAL ----------
+        long tiempoTotalMin = tramos.stream()
+                .filter(t -> t.getFechaHoraInicio() != null && t.getFechaHoraFin() != null)
+                .mapToLong(t -> Duration.between(t.getFechaHoraInicio(), t.getFechaHoraFin()).toMinutes())
+                .sum();
+
+        solicitud.setTiempoRealMin((int) tiempoTotalMin);
+
+        // ---------- CAMBIAR ESTADO ----------
+        solicitud.setEstado("COMPLETADA");
+
+        solicitudRepository.save(solicitud);
+
+        // ---------- REGISTRO A SEGUIMIENTO ----------
+        enviarEventoSeguimientoSolicitud("ENTREGADO", solicitud);
+
+        return mapper.mapEntidadToDto(solicitud);
+    }
+
+
+    private void enviarEventoSeguimiento(String tipo, Tramo tramo) {
+
+        try {
+            String url = "http://ms-seguimiento:8085/api/tracking/eventos";
+
+            Map<String, Object> body = Map.of(
+                    "tipo", tipo,
+                    "solicitudId", tramo.getSolicitud().getId(),
+                    "tramoId", tramo.getId(),
+                    "descripcion", tipo + " del tramo " + tramo.getId()
+            );
+
+            restTemplate.postForObject(url, body, Void.class);
+        }
+        catch (Exception e) {
+            System.out.println("⚠ No se pudo registrar evento en seguimiento: " + e.getMessage());
+        }
+    }
+
+    private void enviarEventoSeguimientoSolicitud(String tipo, Solicitud solicitud) {
+        try {
+            String url = "http://ms-seguimiento:8085/api/tracking/eventos";
+
+            Map<String, Object> body = Map.of(
+                    "tipo", tipo,
+                    "solicitudId", solicitud.getId(),
+                    "descripcion", tipo + " de la solicitud " + solicitud.getId()
+            );
+
+            restTemplate.postForObject(url, body, Void.class);
+        }
+        catch (Exception e) {
+            System.out.println("⚠ No se pudo registrar evento en seguimiento: " + e.getMessage());
+        }
+    }
+
+
+
+
 }
 

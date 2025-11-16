@@ -55,7 +55,7 @@ SELECT setval('cliente_id_seq', (SELECT MAX(id) FROM cliente));
 
 -- CREACION DE DATOS DE CAMIONES --
 INSERT INTO camion (id, dominio, nombre_transportista, cap_peso_kg, cap_vol_m3, costo_base_km, consumo_100km) VALUES
-(1, 'AB123CD','JOSE HERNANDEZ', 25000, 80, 150.50, 30.5),
+(1, 'AB123CD','JOSE HERNANDEZ', 250, 80, 150.50, 30.5),
 (2, 'EF456GH','MARIO GOMEZ', 20000, 60, 130.75, 25.0),
 (3, 'IJ789KL','LUIS PEREZ', 30000, 100, 180.00, 35.2),
 (4, 'MN012OP','ANA LOPEZ', 22000, 70, 140.25, 28.3);
@@ -90,7 +90,7 @@ INSERT INTO deposito (id, nombre, direccion, lat, lng, creado_en, costo_estadia_
 SELECT setval('deposito_id_seq', (SELECT MAX(id) FROM deposito));
 
 INSERT INTO contenedor (id, codigo, capacidad_kg, estado, creado_en, cliente_id) VALUES
-(1, 'AAA-001', 10000, 'PENDIENTE', now(), 1),
+(1, 'AAA-001', 1000000, 'PENDIENTE', now(), 1),
 (2, 'AAA-002', 10000, 'PENDIENTE', now(), 2),
 (3, 'AAA-003', 12500, 'EN_CURSO', now(), 1),
 (4, 'AAA-004', 12500, 'FINALIZADO', now(), 2),

@@ -1,0 +1,10 @@
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\controllers\SeguimientoController.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\dto\EventoSeguimientoRequestDTO.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\dto\EventoSeguimientoResponseDTO.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\dto\ResumenSeguimientoDTO.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\entities\EventoSeguimiento.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\mappers\EventoSeguimientoMapper.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\repository\EventoSeguimientoRepository.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\SecurityConfig.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\SeguimientoApplication.java
+C:\Users\matia\OneDrive\Documentos\UTN\Seminario Integrador\servicioTrasporte-backend\seguimiento\src\main\java\com\seguimiento\seguimiento\service\SeguimientoService.java

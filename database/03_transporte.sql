@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS solicitud (
   costo_final         numeric(14,2),
   tiempo_real_min     integer,
   creado_en           timestamptz NOT NULL DEFAULT now()
+  -- peso y volumen del contenedor se obtienen de operacion.contenedor
 );
 
 -- Tramos de cada solicitud

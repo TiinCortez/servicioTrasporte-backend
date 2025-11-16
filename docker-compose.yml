@@ -1,6 +1,4 @@
 services:
-  
-  # --- Base de Datos PostgreSQL  ---
   postgres:
     image: postgres:15
     container_name: db_postgres
@@ -19,7 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- Microservicio de Operaciones ---
   ms-operaciones:
     container_name: ms_operaciones
     build:
@@ -29,13 +26,12 @@ services:
       - "8082:8082"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=operaciones
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DB_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
 
-  # --- Microservicio de Transporte ---
   ms-transporte:
     container_name: ms_transporte
     build:
@@ -43,33 +39,49 @@ services:
       dockerfile: ./transporte.dockerfile
     ports:
       - "8083:8083"
-    env_file:
-      - .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=transporte
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DB_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SERVER_PORT: 8083
+      CLIENTS_TRACKING_URL: http://ms-seguimiento:8085
+      CLIENTS_OPENCAGE_KEY: ""
     depends_on:
       postgres:
         condition: service_healthy
 
-  # --- Microservicio de Tarifa ---
   ms-tarifa:
     container_name: ms_tarifa
     build:
       context: .
-      dockerfile: ./tarifa.dockerfile 
+      dockerfile: ./tarifa.dockerfile
     ports:
-      - "8084:8084" 
+      - "8084:8084"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=tarifa
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DB_PASSWORD}
-      SERVER_PORT: 8084 
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SERVER_PORT: 8084
     depends_on:
       postgres:
         condition: service_healthy
+
+  ms-seguimiento:
+    container_name: ms_seguimiento
+    build:
+      context: .
+      dockerfile: ./seguimiento.dockerfile
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=seguimiento
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SERVER_PORT: 8085
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 
 volumes:
   postgres_data:

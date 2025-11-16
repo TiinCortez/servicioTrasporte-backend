@@ -63,9 +63,7 @@ public class Solicitud {
     @Column(name = "creado_en", nullable = false, updatable = false)
     private OffsetDateTime creadoEn;
 
-    // --- Relación Inversa (Una Solicitud tiene muchos Tramos) ---
-    @OneToMany(mappedBy = "solicitud", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    //JsonIgnore evita bucles al pasar a JSON como cuando Solicitud tiene una lista de Tramos y cada Tramo tiene una referencia a Solicitud
-    @JsonIgnore 
+    // 🔥🔥🔥 ESTO ES LO QUE TE FALTABA 🔥🔥🔥
+    @OneToMany(mappedBy = "solicitud", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<Tramo> tramos;
 }

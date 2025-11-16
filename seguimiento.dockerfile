@@ -1,20 +1,22 @@
-# --- ETAPA 1: Build ---
+# --- ETAPA 1: Compilación (Build) ---
 FROM maven:3.9.6-eclipse-temurin-17-focal AS builder
 
 WORKDIR /app
 
-# Copiamos TODO el proyecto (el contexto lo da docker-compose)
-COPY . .
+COPY seguimiento/pom.xml seguimiento/pom.xml
+RUN mvn -f seguimiento/pom.xml dependency:go-offline -B
 
-# Compilamos SOLO el módulo seguimiento
-RUN mvn -f seguimiento/pom.xml clean package -DskipTests
+COPY seguimiento/src seguimiento/src
 
-# --- ETAPA 2: Run ---
+RUN mvn clean package -f seguimiento/pom.xml -DskipTests
+
+# --- ETAPA 2: Ejecución (Run) ---
 FROM eclipse-temurin:17-jre-focal
 
 WORKDIR /app
 
-# Copiamos el JAR del micro de seguimiento
+EXPOSE 8085
+
 COPY --from=builder /app/seguimiento/target/*.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

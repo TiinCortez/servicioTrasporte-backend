@@ -17,6 +17,50 @@ services:
       timeout: 5s
       retries: 5
 
+  # ===== KEYCLOAK =====
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/db_operaciones
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command:
+      - start-dev
+      - --http-port=8080
+      - --hostname-strict=false
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ===== API GATEWAY =====
+  api-gateway:
+    container_name: api_gateway
+    build:
+      context: .
+      dockerfile: ./gateway.dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      ms-operaciones:
+        condition: service_started
+      ms-transporte:
+        condition: service_started
+      ms-tarifa:
+        condition: service_started
+      ms-seguimiento:
+        condition: service_started
+
+  # ===== MICROSERVICIOS =====
   ms-operaciones:
     container_name: ms_operaciones
     build:
@@ -28,6 +72,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_operaciones?currentSchema=operaciones
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SERVER_PORT: 8082
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,7 +126,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
 
 volumes:
   postgres_data:

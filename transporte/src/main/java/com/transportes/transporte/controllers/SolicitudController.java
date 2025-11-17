@@ -42,6 +42,13 @@ public class SolicitudController {
     public ResponseEntity<SolicitudResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(solicitudService.getSolicitudById(id));
     }
+
+    // Nuevo endpoint: buscar por numeroSolicitud el endpoint por numero solicitud
+    @GetMapping("/solicitudes/numero/{numero}")
+    public ResponseEntity<SolicitudResponseDTO> getByNumero(@PathVariable String numero) {
+        return ResponseEntity.ok(solicitudService.getSolicitudByNumero(numero));
+    }
+
     // 3. Tercer endpoint para obtener todas las solicitudes.
     @GetMapping("/solicitudes")
     public ResponseEntity<List<SolicitudResponseDTO>> getAll() {
@@ -71,11 +78,4 @@ public class SolicitudController {
     public ResponseEntity<SolicitudResponseDTO> finalizar(@PathVariable Long id) {
         return ResponseEntity.ok(solicitudService.finalizarSolicitud(id));
     }
-
-
-
-
-
-
-
 }

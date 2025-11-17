@@ -312,6 +312,13 @@ public class SolicitudService {
                 .orElseThrow(() -> new EntityNotFoundException("Solicitud no encontrada"));
         return mapper.mapEntidadToDto(solicitud);
     }
+
+    @Transactional(readOnly = true)
+    public SolicitudResponseDTO getSolicitudByNumero(String numeroSolicitud) {
+        Solicitud solicitud = solicitudRepository.findByNumeroSolicitud(numeroSolicitud)
+                .orElseThrow(() -> new EntityNotFoundException("Solicitud no encontrada con numero: " + numeroSolicitud));
+        return mapper.mapEntidadToDto(solicitud);
+    }
     
     @Transactional(readOnly = true)
     public List<SolicitudResponseDTO> getAllSolicitudes() {
@@ -319,6 +326,7 @@ public class SolicitudService {
                 .map(mapper::mapEntidadToDto)
                 .collect(Collectors.toList());
     }
+    
     // --- ¡¡ARREGLO #2: CLASE AUXILIAR INTERNA!! ---
     // (Pon esta clase pequeña al final de tu archivo SolicitudService.java)
     @Data

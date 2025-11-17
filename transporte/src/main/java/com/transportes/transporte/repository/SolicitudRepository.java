@@ -25,4 +25,7 @@ public interface SolicitudRepository extends JpaRepository<Solicitud, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT MAX(s.numeroSolicitud) FROM Solicitud s WHERE s.numeroSolicitud LIKE :yearPrefix")
     Optional<String> findMaxNumeroSolicitudByYear(@Param("yearPrefix") String yearPrefix);
+
+    // Buscar solicitud por su número (ej: "2025-AB12CD34")
+    Optional<Solicitud> findByNumeroSolicitud(String numeroSolicitud);
 }

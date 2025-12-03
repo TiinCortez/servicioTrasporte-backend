@@ -45,7 +45,7 @@ public class SolicitudService {
     private SolicitudMapper mapper; 
 
 
-    private String OPENCAGE_API_KEY ="d87d4d3b0db84826a9ffcee7f1e2d00a";
+    private String OPENCAGE_API_KEY ="";
 
     private List<DepositoDTO> depositCache = null;
     private final Map<String, OpenCageGeometry> geocodingCache = new ConcurrentHashMap<>();
